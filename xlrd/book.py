@@ -547,7 +547,7 @@ class Book(BaseObject):
         self.style_name_map = {}
         self.mem = BYTES_NULL
         self.filestr = BYTES_NULL
-		self.store_forumlas = False
+        self.store_forumlas = False
 
     def biff2_8_load(self, filename=None, file_contents=None,
         logfile=sys.stdout, verbosity=0, pickleable=True, use_mmap=USE_MMAP,
@@ -566,7 +566,7 @@ class Book(BaseObject):
         self.formatting_info = formatting_info
         self.on_demand = on_demand
         self.ragged_rows = ragged_rows
-		self.store_formulas = store_formulas
+        self.store_formulas = store_formulas
 
         if not file_contents:
             if python_version < (2, 2) and self.use_mmap:
