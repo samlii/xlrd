@@ -67,6 +67,7 @@ def open_workbook_xls(filename=None,
     file_contents=None,
     encoding_override=None,
     formatting_info=False, on_demand=False, ragged_rows=False,
+	store_formulas=False,
     ):
     t0 = time.clock()
     if TOGGLE_GC:
@@ -82,6 +83,7 @@ def open_workbook_xls(filename=None,
             formatting_info=formatting_info,
             on_demand=on_demand,
             ragged_rows=ragged_rows,
+			store_formulas=store_formulas
             )
         t1 = time.clock()
         bk.load_time_stage_1 = t1 - t0
@@ -545,6 +547,7 @@ class Book(BaseObject):
         self.style_name_map = {}
         self.mem = BYTES_NULL
         self.filestr = BYTES_NULL
+		self.store_forumlas = False
 
     def biff2_8_load(self, filename=None, file_contents=None,
         logfile=sys.stdout, verbosity=0, pickleable=True, use_mmap=USE_MMAP,
@@ -552,6 +555,7 @@ class Book(BaseObject):
         formatting_info=False,
         on_demand=False,
         ragged_rows=False,
+		store_formulas=False,
         ):
         # DEBUG = 0
         self.logfile = logfile
@@ -562,6 +566,7 @@ class Book(BaseObject):
         self.formatting_info = formatting_info
         self.on_demand = on_demand
         self.ragged_rows = ragged_rows
+		self.store_formulas = store_formulas
 
         if not file_contents:
             if python_version < (2, 2) and self.use_mmap:
@@ -689,6 +694,7 @@ class Book(BaseObject):
                 self._position,
                 self._sheet_names[sh_number],
                 sh_number,
+				self.store_formulas
                 )
         sh.read(self)
         self._sheet_list[sh_number] = sh

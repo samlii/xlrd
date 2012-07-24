@@ -298,7 +298,7 @@ class Sheet(BaseObject):
     vertical_page_breaks = []
 
 
-    def __init__(self, book, position, name, number):
+    def __init__(self, book, position, name, number, store_formula=False):
         self.book = book
         self.biff_version = book.biff_version
         self._position = position
@@ -330,6 +330,7 @@ class Sheet(BaseObject):
         self._dimncols = 0
         self._cell_values = []
         self._cell_types = []
+        self._cell_formulas = []
         self._cell_xf_indexes = []
         self.defcolwidth = None
         self.standardwidth = None
@@ -375,6 +376,7 @@ class Sheet(BaseObject):
 
         self._ixfe = None # BIFF2 only
         self._cell_attr_to_xfx = {} # BIFF2.0 only
+        self.store_formula = store_formula
 
         #### Don't initialise this here, use class attribute initialisation.
         #### self.gcw = (0, ) * 256 ####
@@ -404,6 +406,7 @@ class Sheet(BaseObject):
             self._cell_types[rowx][colx],
             self._cell_values[rowx][colx],
             xfx,
+            self._cell_formulas[rowx][colx],
             )
 
     ##
@@ -416,6 +419,12 @@ class Sheet(BaseObject):
     # Refer to the documentation of the {@link #Cell} class.
     def cell_type(self, rowx, colx):
         return self._cell_types[rowx][colx]
+
+    ##
+    # Type of the cell in the given row and column.
+    # Refer to the documentation of the Cell class.
+    def cell_formula(self, rowx, colx):
+        return self._cell_formulas[rowx][colx]
 
     ##
     # XF index of the cell in the given row and column.
@@ -477,6 +486,14 @@ class Sheet(BaseObject):
         if end_colx is None:
             return self._cell_values[rowx][start_colx:]
         return self._cell_values[rowx][start_colx:end_colx]
+
+    ##
+    # Returns a slice of the formulas
+    # of the cells in the given row.
+    def row_formulas(self, rowx, start_colx=0, end_colx=None):
+        if end_colx is None:
+            return self._cell_formulas[rowx][start_colx:]
+        return self._cell_formulas[rowx][start_colx:end_colx]
 
     ##
     # Returns a slice of the {@link #Cell} objects in the given row.
@@ -547,6 +564,23 @@ class Sheet(BaseObject):
             ]
 
     ##
+    # Returns a slice of the formulas of the {@link #Cell} objects in the given column.
+    def col_formulas(self, colx, start_rowx=0, end_rowx=None):
+        nr = self.nrows
+        if start_rowx < 0:
+            start_rowx += nr
+            if start_rowx < 0:
+                start_rowx = 0
+        if end_rowx is None or end_rowx > nr:
+            end_rowx = nr
+        elif end_rowx < 0:
+            end_rowx += nr
+        return [
+            self._cell_formulas[rowx][colx]
+            for rowx in xrange(start_rowx, end_rowx)
+            ]
+
+    ##
     # Returns a sequence of the {@link #Cell} objects in the given column.
     def col(self, colx):
         return self.col_slice(colx)
@@ -598,6 +632,7 @@ class Sheet(BaseObject):
             ncols = self.ncols
             s_cell_types = self._cell_types
             s_cell_values = self._cell_values
+            s_cell_formulas = self._cell_formulas
             s_cell_xf_indexes = self._cell_xf_indexes
             s_fmt_info = self.formatting_info
             # for rowx in xrange(self.nrows):
@@ -611,11 +646,12 @@ class Sheet(BaseObject):
                 nextra = ncols - rlen
                 if nextra > 0:
                     s_cell_values[rowx][rlen:] = [''] * nextra
+                    s_cell_formulas[rowx][rlen:] = [None] * nextra
                     trow[rlen:] = self.bt * nextra
                     if s_fmt_info:
                         s_cell_xf_indexes[rowx][rlen:] = self.bf * nextra
 
-    def put_cell_ragged(self, rowx, colx, ctype, value, xf_index):
+    def put_cell_ragged(self, rowx, colx, ctype, value, xf_index, formula=None):
         if ctype is None:
             # we have a number, so look up the cell type
             ctype = self._xf_index_to_xl_type_map[xf_index]
@@ -629,18 +665,21 @@ class Sheet(BaseObject):
 
                 scta = self._cell_types.append
                 scva = self._cell_values.append
+                scfa = self._cell_formulas.append
                 scxa = self._cell_xf_indexes.append
                 bt = self.bt
                 bf = self.bf
                 for _unused in xrange(self.nrows, nr):
                     scta(bt * 0)
                     scva([])
+                    scfa([])
                     if fmt_info:
                         scxa(bf * 0)
                 self.nrows = nr
 
             types_row = self._cell_types[rowx]
             values_row = self._cell_values[rowx]
+            formulas_row = self._cell_formulas[rowx]
             if fmt_info:
                 fmt_row = self._cell_xf_indexes[rowx]
             ltr = len(types_row)
@@ -652,6 +691,7 @@ class Sheet(BaseObject):
                 # self._put_cell_cells_appended += 1
                 types_row.append(ctype)
                 values_row.append(value)
+                formulas_row.append(formula)
                 if fmt_info:
                     fmt_row.append(xf_index)
                 return
@@ -664,17 +704,20 @@ class Sheet(BaseObject):
                 #     fmt_row.extend(self.bf * num_empty)
                 types_row[ltr:] = self.bt * num_empty
                 values_row[ltr:] = [''] * num_empty
+                formulas_row[ltr:] = [None] * num_empty
                 if fmt_info:
                     fmt_row[ltr:] = self.bf * num_empty
             types_row[colx] = ctype
             values_row[colx] = value
+            if formulas_row[colx] is None:
+                formulas_row[colx] = formula
             if fmt_info:
                 fmt_row[colx] = xf_index
         except:
             print >> self.logfile, "put_cell", rowx, colx
             raise
 
-    def put_cell_unragged(self, rowx, colx, ctype, value, xf_index):
+    def put_cell_unragged(self, rowx, colx, ctype, value, xf_index, formula=None):
         if ctype is None:
             # we have a number, so look up the cell type
             ctype = self._xf_index_to_xl_type_map[xf_index]
@@ -683,6 +726,7 @@ class Sheet(BaseObject):
         try:
             self._cell_types[rowx][colx] = ctype
             self._cell_values[rowx][colx] = value
+            self._cell_formulas[rowx][colx] = formula
             if self.formatting_info:
                 self._cell_xf_indexes[rowx][colx] = xf_index
         except IndexError:
@@ -718,9 +762,11 @@ class Sheet(BaseObject):
                     if self.formatting_info:
                         self._cell_xf_indexes[rowx].extend(self.bf * nextra)
                     self._cell_values[rowx].extend([''] * nextra)
+                    self._cell_formulas[rowx].extend([None] * nextra)
             else:
                 scta = self._cell_types.append
                 scva = self._cell_values.append
+                scfa = self._cell_formulas.append
                 scxa = self._cell_xf_indexes.append
                 fmt_info = self.formatting_info
                 nc = self.ncols
@@ -730,6 +776,7 @@ class Sheet(BaseObject):
                     # self._put_cell_rows_appended += 1
                     scta(bt * nc)
                     scva([''] * nc)
+                    scfa([None] * nc)
                     if fmt_info:
                         scxa(bf * nc)
                 self.nrows = nr
@@ -737,6 +784,7 @@ class Sheet(BaseObject):
             try:
                 self._cell_types[rowx][colx] = ctype
                 self._cell_values[rowx][colx] = value
+                self._cell_formulas[rowx][colx] = formula
                 if self.formatting_info:
                     self._cell_xf_indexes[rowx][colx] = xf_index
             except:
@@ -754,7 +802,7 @@ class Sheet(BaseObject):
         DEBUG = 0
         blah = DEBUG or self.verbosity >= 2
         blah_rows = DEBUG or self.verbosity >= 4
-        blah_formulas = 0 and blah
+        blah_formulas = 1 and blah
         r1c1 = 0
         oldpos = bk._position
         bk._position = self._position
@@ -909,8 +957,10 @@ class Sheet(BaseObject):
                 if blah_formulas: # testing formula dumper
                     #### XXXX FIXME
                     fprintf(self.logfile, "FORMULA: rowx=%d colx=%d\n", rowx, colx)
+                fmla = None
+                if self.store_formula:
                     fmlalen = local_unpack("<H", data[20:22])[0]
-                    decompile_formula(bk, data[22:], fmlalen, FMLA_TYPE_CELL,
+                    fmla = decompile_formula(bk, data[22:], fmlalen, FMLA_TYPE_CELL,
                         browx=rowx, bcolx=colx, blah=1, r1c1=r1c1)
                 if result_str[6:8] == "\xFF\xFF":
                     if result_str[0]  == '\x00':
@@ -935,7 +985,8 @@ class Sheet(BaseObject):
                                 if blah_formulas:
                                     fprintf(self.logfile, "SHRFMLA (sub): %d %d %d %d %d\n",
                                         row1x, rownx, col1x, colnx, nfmlas)
-                                    decompile_formula(bk, data2[10:], tokslen, FMLA_TYPE_SHARED,
+                                if self.store_formula:
+                                    fmla = decompile_formula(bk, data2[10:], tokslen, FMLA_TYPE_SHARED,
                                         blah=1, browx=rowx, bcolx=colx, r1c1=r1c1)
                             elif rc2 not in XL_SHRFMLA_ETC_ETC:
                                 raise XLRDError(
@@ -953,14 +1004,14 @@ class Sheet(BaseObject):
                     elif result_str[0] == '\x01':
                         # boolean formula result
                         value = ord(result_str[2])
-                        self_put_cell(rowx, colx, XL_CELL_BOOLEAN, value, xf_index)
+                        self_put_cell(rowx, colx, XL_CELL_BOOLEAN, value, xf_index, fmla)
                     elif result_str[0] == '\x02':
                         # Error in cell
                         value = ord(result_str[2])
-                        self_put_cell(rowx, colx, XL_CELL_ERROR, value, xf_index)
+                        self_put_cell(rowx, colx, XL_CELL_ERROR, value, xf_index, fmla)
                     elif result_str[0] == '\x03':
                         # empty ... i.e. empty (zero-length) string, NOT an empty cell.
-                        self_put_cell(rowx, colx, XL_CELL_TEXT, u"", xf_index)
+                        self_put_cell(rowx, colx, XL_CELL_TEXT, u"", xf_index, fmla)
                     else:
                         raise XLRDError("unexpected special case (0x%02x) in FORMULA" % ord(result_str[0]))
                 else:
@@ -2237,19 +2288,25 @@ ctype_text = {
 
 class Cell(BaseObject):
 
-    __slots__ = ['ctype', 'value', 'xf_index']
+    __slots__ = ['ctype', 'value', 'xf_index', 'formula']
 
-    def __init__(self, ctype, value, xf_index=None):
+    def __init__(self, ctype, value, xf_index=None, formula=None):
         self.ctype = ctype
         self.value = value
         self.xf_index = xf_index
+        self.formula = formula
 
     def __repr__(self):
         if self.xf_index is None:
-            return "%s:%r" % (ctype_text[self.ctype], self.value)
+            if self.formula is None:
+                return "%s:%r" % (ctype_text[self.ctype], self.value)
+            else:
+                return "%s:%r (%r)" % (ctype_text[self.ctype], self.value, self.formula)
         else:
-            return "%s:%r (XF:%r)" % (ctype_text[self.ctype], self.value, self.xf_index)
-
+            if self.formula is None:
+                return "%s:%r (XF:%r)" % (ctype_text[self.ctype], self.value, self.xf_index)
+            else:
+                return "%s:%r (%r) (XF:%r)" % (ctype_text[self.ctype], self.value, self.formula, self.xf_index)
 ##
 # There is one and only one instance of an empty cell -- it's a singleton. This is it.
 # You may use a test like "acell is empty_cell".

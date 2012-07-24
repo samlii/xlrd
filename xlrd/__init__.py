@@ -380,6 +380,11 @@ USE_MMAP = MMAP_AVAILABLE
 # Sheet.row_len() method.
 # <br /> -- New in version 0.7.2
 #
+# @param store_formulas False (the default) means formulas for Biff v5-8 will not attempt to be stored. 
+# True means that they will.
+# This functionality is still under development.
+# <br /> -- New in version 0.7.2
+#
 # @return An instance of the Book class.
 
 def open_workbook(filename=None,
@@ -392,6 +397,7 @@ def open_workbook(filename=None,
     formatting_info=False,
     on_demand=False,
     ragged_rows=False,
+	store_formulas=False,
     ):
     peeksz = 4
     if file_contents:
@@ -441,6 +447,7 @@ def open_workbook(filename=None,
         formatting_info=formatting_info,
         on_demand=on_demand,
         ragged_rows=ragged_rows,
+		store_formulas=store_formulas
         )
     return bk
 
