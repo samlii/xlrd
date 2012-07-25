@@ -961,7 +961,7 @@ class Sheet(BaseObject):
                 if self.store_formula:
                     fmlalen = local_unpack("<H", data[20:22])[0]
                     fmla = decompile_formula(bk, data[22:], fmlalen, FMLA_TYPE_CELL,
-                        browx=rowx, bcolx=colx, blah=1, r1c1=r1c1)
+                        browx=rowx, bcolx=colx, blah=blah, r1c1=r1c1)
                 if result_str[6:8] == "\xFF\xFF":
                     if result_str[0]  == '\x00':
                         # need to read next record (STRING)
@@ -987,7 +987,7 @@ class Sheet(BaseObject):
                                         row1x, rownx, col1x, colnx, nfmlas)
                                 if self.store_formula:
                                     fmla = decompile_formula(bk, data2[10:], tokslen, FMLA_TYPE_SHARED,
-                                        blah=1, browx=rowx, bcolx=colx, r1c1=r1c1)
+                                        blah=blah, browx=rowx, bcolx=colx, r1c1=r1c1)
                             elif rc2 not in XL_SHRFMLA_ETC_ETC:
                                 raise XLRDError(
                                     "Expected SHRFMLA, ARRAY, TABLEOP* or STRING record; found 0x%04x" % rc2)
@@ -1017,7 +1017,7 @@ class Sheet(BaseObject):
                 else:
                     # it is a number
                     d = local_unpack('<d', result_str)[0]
-                    self_put_cell(rowx, colx, None, d, xf_index)
+                    self_put_cell(rowx, colx, None, d, xf_index, fmla)
             elif rc == XL_BOOLERR:
                 rowx, colx, xf_index, value, is_err = local_unpack('<HHHBB', data[:8])
                 # Note OOo Calc 2.0 writes 9-byte BOOLERR records.
@@ -1178,7 +1178,7 @@ class Sheet(BaseObject):
                 if blah_formulas:
                     print >> self.logfile, "SHRFMLA (main):", row1x, rownx, col1x, colnx, nfmlas
                     decompile_formula(bk, data[10:], tokslen, FMLA_TYPE_SHARED,
-                        blah=1, browx=rowx, bcolx=colx, r1c1=r1c1)
+                        blah=blah, browx=rowx, bcolx=colx, r1c1=r1c1)
             elif rc == XL_CONDFMT:
                 if not fmt_info: continue
                 assert bv >= 80
@@ -1248,7 +1248,7 @@ class Sheet(BaseObject):
                     fprintf(self.logfile,
                         "*** formula 1:\n",
                         )
-                    dump_formula(bk, fmla1, sz1, bv, reldelta=0, blah=1)
+                    dump_formula(bk, fmla1, sz1, bv, reldelta=0, blah=blah)
                 fmla2 = data[pos:pos+sz2]
                 pos += sz2
                 assert pos == data_len
@@ -1256,7 +1256,7 @@ class Sheet(BaseObject):
                     fprintf(self.logfile,
                         "*** formula 2:\n",
                         )
-                    dump_formula(bk, fmla2, sz2, bv, reldelta=0, blah=1)
+                    dump_formula(bk, fmla2, sz2, bv, reldelta=0, blah=blah)
             elif rc == XL_DEFAULTROWHEIGHT:
                 if data_len == 4:
                     bits, self.default_row_height = unpack("<HH", data[:4])
